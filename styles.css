@@ -505,6 +505,20 @@ html,body{overflow-x:hidden;}
   .sidebar .userbox{position:sticky;bottom:0;margin-top:12px;}
 }
 
+/* ---------- LOGIN SURFACE ACROSS THE APP ---------- */
+#app.ready{position:relative;background:radial-gradient(circle at 86% 4%,#343538 0,#242527 24%,#1b1c1f 57%,#17181a 100%);}
+#app.ready::before{background:linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px);background-size:92px 92px;opacity:.45;mask-image:linear-gradient(to bottom,#000,transparent 74%);}
+.sidebar{background:rgba(15,16,18,.82);border-right-color:rgba(255,255,255,.08);}
+.topbar{background:rgba(24,25,28,.68);border-bottom-color:rgba(255,255,255,.08);backdrop-filter:blur(18px);}
+.searchbox,.topbar-icon{background:rgba(19,20,22,.55);border-color:rgba(255,255,255,.08);}
+.kpi,.panel{background:rgba(27,28,31,.82);border-color:rgba(255,255,255,.075);box-shadow:0 14px 34px rgba(0,0,0,.14);backdrop-filter:blur(10px);}
+.kpi{border-left-color:rgba(255,255,255,.12);}.kpi .n{color:#f3f3f1;}.kpi.ok .n{color:var(--green);}.kpi.warn .n{color:var(--yellow);}.kpi.danger .n{color:var(--red);}
+.panel table{background:rgba(18,19,21,.45);}.plan-column{background:rgba(18,19,21,.55);}.plan-card{background:rgba(31,32,35,.85);border-color:rgba(255,255,255,.08);}
+.btn{background:rgba(35,36,39,.72);border-color:rgba(255,255,255,.1);}.btn:hover{background:rgba(52,53,56,.85);}.btn.primary{background:#f3f3f1;border-color:#f3f3f1;color:#222326;box-shadow:none;}.btn.primary:hover{background:#fff;}.btn.green{color:#09130d;}.btn.red{color:#210908;}
+.navitem.active{background:rgba(255,255,255,.085);box-shadow:inset 2px 0 #f3f3f1;}.navitem.active .ic{color:#f3f3f1;}
+.modal{background:#1b1c1f;border-color:rgba(255,255,255,.1);}.form-grid input,.form-grid select,.form-grid textarea{background:#141517;border-color:rgba(255,255,255,.1);}.modal h3{color:#f3f3f1;}
+.tabbar{background:rgba(17,18,20,.46);border-color:rgba(255,255,255,.08);}.tabbtn.active{background:rgba(255,255,255,.08);color:#f3f3f1;border-color:#f3f3f1;}
+
 /* ---------- LOGIN REFERENCE LAYOUT ---------- */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
 #login-screen{position:fixed;inset:0;background:#f6f6f5;display:flex;align-items:center;justify-content:center;padding:28px 32px;}
