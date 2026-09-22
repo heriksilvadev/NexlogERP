@@ -135,6 +135,7 @@ async function boot(){
   $('#login-back').addEventListener('click', ()=>{ $('#login-usuario').value=''; $('#login-password').value=''; $('#login-error').textContent=''; $('#login-usuario').focus(); });
   $('#login-magic').addEventListener('click', ()=>toast('O acesso por link mágico ainda depende de um servidor de autenticação.'));
   $('#login-sso').addEventListener('click', ()=>toast('O login corporativo será conectado ao provedor da empresa.'));
+  $('#top-notifications').addEventListener('click', ()=>{ VIEW='notificacoes'; OS_OPEN=null; renderView(); });
   const store = readLocalDb();
   if(!store.clients.length && !store.materials.length && !store.service_orders.length){
     await seedDemoData();
@@ -155,6 +156,8 @@ async function doLogin(){
   $('#app').classList.add('ready');
   $('#user-name-lbl').textContent = CUR.name;
   $('#user-role-lbl').textContent = CUR.role;
+  $('#user-avatar').textContent = CUR.name.charAt(0).toUpperCase();
+  $('#top-avatar').textContent = CUR.name.charAt(0).toUpperCase();
   applyPermissions();
   subscribeAll();
 }

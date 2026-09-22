@@ -196,6 +196,11 @@ tr.rowlink:hover td{background:#FAFBFD;}
 <div id="app">
   <div class="sidebar" id="sidebar">
     <div class="brand"><span class="dot"></span>NEXLOG</div>
+    <div class="userbox">
+      <div class="user-avatar" id="user-avatar">A</div>
+      <div class="user-meta"><b id="user-name-lbl">—</b><span id="user-role-lbl">—</span></div>
+      <div class="logout" id="logout-btn">Trocar de usuário</div>
+    </div>
     <div class="navgroup">
       <div class="navitem" data-view="dashboard"><span class="ic">◈</span>Dashboard</div>
       <div class="navitem" data-view="os"><span class="ic">◤</span>Ordens de Serviço</div>
@@ -209,11 +214,6 @@ tr.rowlink:hover td{background:#FAFBFD;}
       <div class="navitem" data-view="notificacoes"><span class="ic">◒</span>Notificações</div>
       <div class="navitem" data-view="usuarios"><span class="ic">◎</span>Usuários</div>
     </div>
-    <div class="userbox">
-      <b id="user-name-lbl">—</b>
-      <span id="user-role-lbl">—</span>
-      <div class="logout" id="logout-btn">Trocar de usuário</div>
-    </div>
   </div>
 
   <div class="main">
@@ -225,7 +225,7 @@ tr.rowlink:hover td{background:#FAFBFD;}
           <div class="sub" id="view-sub">Visão geral da operação em tempo real</div>
         </div>
       </div>
-      <div class="searchbox"><span style="color:var(--grey);">🔍</span><input id="global-search" placeholder="Buscar OS, cliente, material..."></div>
+      <div class="topbar-actions"><div class="searchbox"><span style="color:var(--grey);">⌕</span><input id="global-search" placeholder="Buscar OS, cliente, material..."></div><button class="topbar-icon" id="top-notifications" title="Abrir notificações">◒</button><div class="topbar-avatar" id="top-avatar">A</div></div>
     </div>
     <div class="content" id="content"></div>
   </div>
