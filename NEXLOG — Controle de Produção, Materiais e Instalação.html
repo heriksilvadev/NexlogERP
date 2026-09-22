@@ -1,0 +1,231 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NEXLOG — Controle de Produção, Materiais e Instalação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0B1730; --navy2:#122142; --blue:#2B62E8; --blue-d:#1E49BE;
+  --bg:#F2F4F8; --card:#FFFFFF; --line:#E3E7EE; --ink:#131C2E; --ink2:#5B6478;
+  --green:#1C9A5B; --green-bg:#E6F7EE; --yellow:#C98A16; --yellow-bg:#FDF3DE;
+  --red:#D23B3B; --red-bg:#FCEBEB; --grey:#8993A6; --grey-bg:#EEF1F5;
+  --radius:10px;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;font-size:14px;}
+a{color:inherit;}
+
+/* ---------- LOGIN ---------- */
+#login-screen{position:fixed;inset:0;background:linear-gradient(160deg,var(--navy) 0%,#1A2E5C 100%);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;}
+.login-box{background:var(--card);border-radius:14px;width:100%;max-width:400px;padding:36px 32px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+.login-logo{font-family:'IBM Plex Mono';font-weight:600;font-size:22px;letter-spacing:.5px;color:var(--navy);display:flex;align-items:center;gap:8px;}
+.login-logo .dot{width:9px;height:9px;background:var(--blue);border-radius:2px;display:inline-block;}
+.login-sub{color:var(--ink2);font-size:13px;margin-top:6px;margin-bottom:26px;}
+.login-box label{display:block;font-size:12.5px;font-weight:600;color:var(--ink2);margin:14px 0 6px;}
+.login-box input,.login-box select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#FAFBFC;}
+.login-btn{margin-top:22px;width:100%;background:var(--blue);color:#fff;border:none;padding:12px;border-radius:8px;font-weight:600;font-size:14.5px;}
+.login-btn:hover{background:var(--blue-d);}
+.login-note{margin-top:16px;font-size:11.5px;color:var(--grey);line-height:1.5;}
+
+/* ---------- SHELL ---------- */
+#app{display:none;min-height:100%;}
+#app.ready{display:flex;}
+.sidebar{width:230px;flex:none;background:var(--navy);color:#C9D3EA;display:flex;flex-direction:column;padding:18px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.sidebar .brand{font-family:'IBM Plex Mono';font-weight:600;color:#fff;font-size:16px;padding:0 20px 16px;letter-spacing:.3px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px;}
+.sidebar .brand .dot{width:8px;height:8px;background:var(--blue);border-radius:2px;}
+.navgroup{padding:6px 10px;}
+.navitem{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;color:#AEB9D4;font-size:13.5px;font-weight:500;cursor:pointer;user-select:none;}
+.navitem:hover{background:rgba(255,255,255,.06);color:#fff;}
+.navitem.active{background:var(--blue);color:#fff;}
+.navitem .ic{width:16px;text-align:center;font-size:13px;opacity:.9;}
+.sidebar .userbox{margin-top:auto;padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#8FA0C7;}
+.sidebar .userbox b{color:#fff;display:block;font-size:13px;}
+.sidebar .logout{margin-top:8px;color:#8FA0C7;text-decoration:underline;cursor:pointer;font-size:11.5px;}
+
+.main{flex:1;min-width:0;}
+.topbar{background:#fff;border-bottom:1px solid var(--line);padding:14px 28px;padding-top:calc(14px + env(safe-area-inset-top,0px));display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+.topbar h1{font-size:18px;margin:0;font-weight:700;}
+.topbar .sub{color:var(--ink2);font-size:12.5px;margin-top:2px;}
+.searchbox{display:flex;align-items:center;gap:8px;background:var(--grey-bg);border-radius:8px;padding:8px 12px;width:280px;}
+.searchbox input{border:none;background:none;outline:none;width:100%;font-size:13px;}
+.content{padding:24px 28px 60px;}
+
+/* ---------- CARDS / GRIDS ---------- */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;}
+.kpi .n{font-family:'IBM Plex Mono';font-size:26px;font-weight:600;}
+.kpi .l{color:var(--ink2);font-size:12px;margin-top:4px;}
+.kpi.warn .n{color:var(--yellow);}
+.kpi.danger .n{color:var(--red);}
+.kpi.ok .n{color:var(--green);}
+
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:18px;}
+.panel h2{font-size:14.5px;margin:0 0 14px;font-weight:700;}
+.panel h2 small{color:var(--ink2);font-weight:500;font-size:12px;}
+
+.row2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start;}
+
+.pend-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent;}
+.pend-item:hover{background:var(--grey-bg);}
+.pend-badge{width:9px;height:9px;border-radius:50%;flex:none;}
+.pend-badge.red{background:var(--red);} .pend-badge.orange{background:var(--yellow);} .pend-badge.yellow{background:#E0C13A;}
+.pend-item .t{font-size:13px;flex:1;}
+.pend-item .a{font-size:11px;color:var(--grey);}
+
+/* ---------- TABLE ---------- */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;color:var(--ink2);font-weight:600;font-size:11.5px;text-transform:none;padding:9px 12px;border-bottom:1px solid var(--line);}
+td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle;}
+tr.rowlink{cursor:pointer;}
+tr.rowlink:hover td{background:#FAFBFD;}
+.osnum{font-family:'IBM Plex Mono';font-weight:600;color:var(--blue-d);}
+
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;}
+.chip.green{background:var(--green-bg);color:var(--green);}
+.chip.yellow{background:var(--yellow-bg);color:var(--yellow);}
+.chip.red{background:var(--red-bg);color:var(--red);}
+.chip.grey{background:var(--grey-bg);color:var(--ink2);}
+.chip.blue{background:#E7EEFD;color:var(--blue-d);}
+
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink);}
+.btn:hover{background:var(--grey-bg);}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+.btn.primary:hover{background:var(--blue-d);}
+.btn.green{background:var(--green);border-color:var(--green);color:#fff;}
+.btn.red{background:var(--red);border-color:var(--red);color:#fff;}
+.btn.ghost{border-color:transparent;background:none;}
+.btn.sm{padding:6px 10px;font-size:12px;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+.toolbar-left{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.filter-select,.filter-input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;background:#fff;}
+
+/* ---------- MODAL ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(10,16,30,.5);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:40px 16px;overflow-y:auto;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:640px;padding:26px 28px;margin-top:0;}
+.modal h3{margin:0 0 4px;font-size:17px;}
+.modal .msub{color:var(--ink2);font-size:12.5px;margin-bottom:18px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-grid .full{grid-column:1/-1;}
+.form-grid label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:5px;}
+.form-grid input,.form-grid select,.form-grid textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#FAFBFC;}
+.form-grid textarea{resize:vertical;min-height:60px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+
+/* ---------- OS DETAIL ---------- */
+.os-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;flex-wrap:wrap;gap:12px;}
+.os-title{font-family:'IBM Plex Mono';font-size:22px;font-weight:600;}
+.os-meta{color:var(--ink2);font-size:13px;margin-top:4px;}
+.tabbar{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto;}
+.tabbtn{padding:10px 14px;font-size:13px;font-weight:600;color:var(--ink2);border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer;}
+.tabbtn.active{color:var(--blue-d);border-color:var(--blue);}
+.gate{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;}
+.gate.ok{background:var(--green-bg);color:#0E6B3F;}
+.gate.blocked{background:var(--red-bg);color:#9A2828;}
+.reqline{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;}
+.mat-row{display:grid;grid-template-columns:2fr .8fr .8fr .8fr .8fr 1fr;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;}
+.mat-row.head{font-weight:600;color:var(--ink2);font-size:11.5px;}
+.progress-bar{background:var(--grey-bg);border-radius:6px;height:8px;overflow:hidden;margin-top:8px;}
+.progress-bar > div{background:var(--green);height:100%;}
+.timeline{border-left:2px solid var(--line);margin-left:6px;}
+.tl-item{position:relative;padding:0 0 18px 20px;}
+.tl-item::before{content:'';position:absolute;left:-6px;top:2px;width:10px;height:10px;border-radius:50%;background:var(--blue);}
+.tl-date{font-size:11.5px;color:var(--grey);font-family:'IBM Plex Mono';}
+.tl-text{font-size:13.5px;margin-top:2px;}
+.empty{text-align:center;padding:40px 20px;color:var(--grey);font-size:13px;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 20px;border-radius:8px;font-size:13px;z-index:300;opacity:0;transition:opacity .25s;pointer-events:none;}
+.toast.show{opacity:1;}
+
+@media(max-width:900px){
+  .sidebar{position:fixed;left:-230px;transition:left .2s;z-index:150;box-shadow:0 0 40px rgba(0,0,0,.3);}
+  .sidebar.open{left:0;}
+  #app{display:block;}
+  .kpi-grid{grid-template-columns:1fr 1fr;}
+  .row2{grid-template-columns:1fr;}
+  .form-grid{grid-template-columns:1fr;}
+  .content{padding:16px;}
+  .topbar{padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top,0px));}
+  .searchbox{display:none;}
+  .mat-row{grid-template-columns:1.6fr .7fr .7fr;font-size:12px;}
+  .mat-row span:nth-child(4),.mat-row span:nth-child(5){display:none;}
+  .mat-row.head span:nth-child(4),.mat-row.head span:nth-child(5){display:none;}
+}
+.menu-toggle{display:none;background:none;border:none;font-size:20px;color:var(--ink);}
+@media(max-width:900px){.menu-toggle{display:block;}}
+</style>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo"><span class="dot"></span>NEXLOG</div>
+    <div class="login-sub">Sistema Integrado de Controle de Produção, Materiais, Instalação e Pós-venda</div>
+    <label>Nome de usuário</label>
+    <input id="login-usuario" autocomplete="username" placeholder="Digite seu usuário">
+    <label>Senha</label>
+    <input id="login-password" type="password" autocomplete="current-password" placeholder="Digite sua senha">
+    <div id="login-error" class="login-error" role="alert"></div>
+    <button class="login-btn" id="login-btn">Entrar</button>
+    <div class="login-note">Acesso protegido por usuário e senha. O perfil e as permissões são definidos pelo cadastro.</div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="sidebar" id="sidebar">
+    <div class="brand"><span class="dot"></span>NEXLOG</div>
+    <div class="navgroup">
+      <div class="navitem" data-view="dashboard"><span class="ic">◈</span>Dashboard</div>
+      <div class="navitem" data-view="os"><span class="ic">◤</span>Ordens de Serviço</div>
+      <div class="navitem" data-view="planejamento"><span class="ic">▦</span>Planejamento</div>
+      <div class="navitem" data-view="clientes"><span class="ic">◉</span>Clientes</div>
+      <div class="navitem" data-view="materiais"><span class="ic">◫</span>Materiais &amp; Estoque</div>
+      <div class="navitem" data-view="ferramentas"><span class="ic">⌁</span>Ferramentas</div>
+      <div class="navitem" data-view="cnc"><span class="ic">◇</span>Terceirização / CNC</div>
+      <div class="navitem" data-view="indicadores"><span class="ic">◬</span>Indicadores</div>
+      <div class="navitem" data-view="pendencias"><span class="ic">◌</span>Pendências</div>
+      <div class="navitem" data-view="notificacoes"><span class="ic">◒</span>Notificações</div>
+      <div class="navitem" data-view="usuarios"><span class="ic">◎</span>Usuários</div>
+    </div>
+    <div class="userbox">
+      <b id="user-name-lbl">—</b>
+      <span id="user-role-lbl">—</span>
+      <div class="logout" id="logout-btn">Trocar de usuário</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" id="menu-toggle">☰</button>
+        <div>
+          <h1 id="view-title">Dashboard</h1>
+          <div class="sub" id="view-sub">Visão geral da operação em tempo real</div>
+        </div>
+      </div>
+      <div class="searchbox"><span style="color:var(--grey);">🔍</span><input id="global-search" placeholder="Buscar OS, cliente, material..."></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-bg"><div class="modal" id="modal-inner"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
+

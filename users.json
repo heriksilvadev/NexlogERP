@@ -1,0 +1,60 @@
+{
+  "schema": "nexlog.users.v1",
+  "description": "Base inicial de usuarios do NEXLOG para desenvolvimento local.",
+  "users": [
+    {
+      "id": "user-admin-001",
+      "nome": "Administrador",
+      "usuario": "admin",
+      "senha": "Nexlog@123",
+      "perfil": "Administrador",
+      "status": "Ativo",
+      "permissoes": [
+        "dashboard",
+        "os",
+        "planejamento",
+        "clientes",
+        "materiais",
+        "ferramentas",
+        "cnc",
+        "indicadores",
+        "pendencias",
+        "notificacoes",
+        "usuarios"
+      ]
+    },
+    {
+      "id": "user-producao-001",
+      "nome": "Equipe de Producao",
+      "usuario": "producao",
+      "senha": "Producao@123",
+      "perfil": "Produção",
+      "status": "Ativo",
+      "permissoes": [
+        "dashboard",
+        "os",
+        "planejamento",
+        "materiais",
+        "ferramentas",
+        "cnc",
+        "pendencias",
+        "notificacoes"
+      ]
+    },
+    {
+      "id": "user-qualidade-001",
+      "nome": "Equipe de Qualidade",
+      "usuario": "qualidade",
+      "senha": "Qualidade@123",
+      "perfil": "Qualidade",
+      "status": "Ativo",
+      "permissoes": [
+        "dashboard",
+        "os",
+        "pendencias",
+        "notificacoes",
+        "indicadores"
+      ]
+    }
+  ]
+}
