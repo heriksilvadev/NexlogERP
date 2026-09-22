@@ -132,6 +132,9 @@ async function boot(){
   $('#login-btn').addEventListener('click', doLogin);
   $('#login-usuario').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
   $('#login-password').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  $('#login-back').addEventListener('click', ()=>{ $('#login-usuario').value=''; $('#login-password').value=''; $('#login-error').textContent=''; $('#login-usuario').focus(); });
+  $('#login-magic').addEventListener('click', ()=>toast('O acesso por link mágico ainda depende de um servidor de autenticação.'));
+  $('#login-sso').addEventListener('click', ()=>toast('O login corporativo será conectado ao provedor da empresa.'));
   const store = readLocalDb();
   if(!store.clients.length && !store.materials.length && !store.service_orders.length){
     await seedDemoData();

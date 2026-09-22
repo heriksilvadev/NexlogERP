@@ -171,23 +171,25 @@ tr.rowlink:hover td{background:#FAFBFD;}
 <body>
 
 <div id="login-screen">
-  <div class="login-visual" aria-hidden="true">
-    <div class="login-visual-mark"><span class="dot"></span>NEXLOG <b>ERP</b></div>
-    <div class="login-visual-line"></div>
-    <div class="login-visual-copy">Da ordem ao pós-venda.<br><strong>Controle em cada etapa.</strong></div>
-    <div class="login-signal"><i></i><span>OPERAÇÃO INTEGRADA</span><b>ONLINE</b></div>
-    <div class="login-grid"></div>
-  </div>
-  <div class="login-box">
-    <div class="login-logo"><span class="dot"></span>NEXLOG</div>
-    <div class="login-sub">Sistema Integrado de Controle de Produção, Materiais, Instalação e Pós-venda</div>
-    <label>Nome de usuário</label>
-    <input id="login-usuario" autocomplete="username" placeholder="Digite seu usuário">
-    <label>Senha</label>
-    <input id="login-password" type="password" autocomplete="current-password" placeholder="Digite sua senha">
-    <div id="login-error" class="login-error" role="alert"></div>
-    <button class="login-btn" id="login-btn">Entrar</button>
-    <div class="login-note">Acesso protegido por usuário e senha. O perfil e as permissões são definidos pelo cadastro.</div>
+  <div class="login-frame">
+    <button class="login-back" id="login-back" type="button">← Voltar</button>
+    <div class="login-center">
+      <div class="login-symbol" aria-hidden="true"><span></span></div>
+      <h1>Bem-vindo de volta</h1>
+      <p class="login-welcome">Entre para acessar o NEXLOG</p>
+      <div class="login-box">
+        <label class="sr-only" for="login-usuario">Nome de usuário</label>
+        <input id="login-usuario" autocomplete="username" placeholder="Nome de usuário">
+        <label class="sr-only" for="login-password">Senha</label>
+        <input id="login-password" type="password" autocomplete="current-password" placeholder="Senha">
+        <div id="login-error" class="login-error" role="alert"></div>
+        <button class="login-btn" id="login-btn">Entrar</button>
+        <button class="login-link" id="login-magic" type="button">Acessar com link mágico</button>
+        <div class="login-divider"><span>ou</span></div>
+        <button class="login-sso" id="login-sso" type="button">Login corporativo (SSO)</button>
+      </div>
+      <p class="login-terms">Ao entrar, você concorda com os termos de uso e a política de privacidade do NEXLOG.</p>
+    </div>
   </div>
 </div>
 
