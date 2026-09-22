@@ -176,7 +176,13 @@ $('#logout-btn').addEventListener('click', ()=>{
   $('#login-password').value='';
   $('#login-error').textContent='';
 });
-$('#menu-toggle').addEventListener('click', ()=> $('#sidebar').classList.toggle('open'));
+function setMobileMenu(open){
+  $('#sidebar').classList.toggle('open', open);
+  $('#mobile-overlay').classList.toggle('show', open);
+  $('#mobile-overlay').setAttribute('aria-hidden', String(!open));
+}
+$('#menu-toggle').addEventListener('click', ()=> setMobileMenu(!$('#sidebar').classList.contains('open')));
+$('#mobile-overlay').addEventListener('click', ()=>setMobileMenu(false));
 
 /* ---------------- LIVE SUBSCRIPTIONS ---------------- */
 function subscribeAll(){
@@ -314,7 +320,7 @@ function addDays(n){ const d = new Date(); d.setDate(d.getDate()+n); return d.to
 $$('.navitem').forEach(el=>{
   el.addEventListener('click', ()=>{
     VIEW = el.dataset.view; OS_OPEN=null;
-    $('#sidebar').classList.remove('open');
+    setMobileMenu(false);
     renderView();
   });
 });
