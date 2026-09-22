@@ -27,14 +27,14 @@ Pedido -> Planejamento -> Materiais -> Estoque -> Produção -> CNC -> Qualidade
 ## Estrutura
 
 ```text
-NEXLOG - Controle de Produção, Materiais e Instalação.html
+index.html
 script.js
 styles.css
 users.json
 README.md
 ```
 
-- `NEXLOG - Controle de Produção, Materiais e Instalação.html`: estrutura da aplicação
+- `index.html`: estrutura da aplicação
 - `script.js`: lógica, navegação, regras de negócio e persistência
 - `styles.css`: identidade visual e responsividade
 - `users.json`: base inicial de usuários
@@ -53,7 +53,7 @@ cd NexlogERP
 2. Abra o arquivo HTML no navegador:
 
 ```text
-NEXLOG - Controle de Produção, Materiais e Instalação.html
+index.html
 ```
 
 Também é possível abrir o arquivo diretamente pelo Explorer do Windows.
