@@ -550,3 +550,53 @@ html,body{overflow-x:hidden;}
   .login-back{top:14px;left:14px;}.login-center{padding-top:82px;width:min(310px,calc(100% - 42px));}
   .login-symbol{margin-bottom:24px;}.login-center h1{font-size:22px;}
 }
+
+/* ---------- SHARED AUTHENTICATED SURFACE ---------- */
+#app.ready{
+  position:relative;
+  display:flex;
+  min-height:100vh;
+  overflow:hidden;
+  background:radial-gradient(circle at 82% 4%,#353638 0,#242527 26%,#1b1c1f 62%,#17181a 100%);
+}
+#app.ready::after{
+  content:'';
+  position:fixed;
+  width:620px;
+  height:620px;
+  right:-310px;
+  top:-220px;
+  border:1px solid rgba(255,255,255,.045);
+  border-radius:50%;
+  box-shadow:0 0 0 1px rgba(255,255,255,.025),0 0 0 72px rgba(255,255,255,.018),0 0 0 144px rgba(255,255,255,.012);
+  pointer-events:none;
+  z-index:0;
+}
+#app.ready::before{content:'';position:fixed;inset:0;background:none;z-index:0;}
+.sidebar,.main{position:relative;z-index:1;}
+.sidebar{background:rgba(18,19,22,.72);border-right:1px solid rgba(255,255,255,.075);box-shadow:none;backdrop-filter:blur(18px);}
+.sidebar .brand{border-bottom-color:rgba(255,255,255,.055);color:#f2f2ef;}
+.sidebar .brand .dot{background:#d5d6d3;}
+.sidebar .userbox{background:rgba(255,255,255,.035);border-color:rgba(255,255,255,.075);}
+.navitem{color:#898b90;}.navitem:hover{background:rgba(255,255,255,.055);color:#f2f2ef;}.navitem.active{background:rgba(255,255,255,.08);color:#f3f3f1;box-shadow:inset 2px 0 #f3f3f1;}.navitem.active .ic{color:#f3f3f1;}
+.topbar{background:rgba(24,25,28,.52);border-bottom-color:rgba(255,255,255,.07);backdrop-filter:blur(18px);}
+.topbar h1{color:#f3f3f1;font-weight:500;}.topbar .sub{color:#85878b;}
+.searchbox,.topbar-icon{background:rgba(16,17,19,.42);border-color:rgba(255,255,255,.075);}.searchbox:focus-within{border-color:rgba(255,255,255,.2);background:rgba(16,17,19,.65);}
+.kpi,.panel{background:rgba(27,28,31,.76);border-color:rgba(255,255,255,.075);box-shadow:0 14px 34px rgba(0,0,0,.12);backdrop-filter:blur(12px);}
+.kpi{border-left-color:rgba(255,255,255,.12);}.kpi.ok,.kpi.warn,.kpi.danger{border-top-color:rgba(255,255,255,.08);}.kpi .n{color:#f3f3f1;}.kpi.ok .n{color:#72cf9a;}.kpi.warn .n{color:#d6d7d4;}.kpi.danger .n{color:#e98b84;}
+.kpi::after{border-color:rgba(255,255,255,.055);}
+.panel h2{color:#e6e7e4;font-weight:500;}.panel h2 small{color:#808388;}
+.panel table{background:rgba(16,17,19,.3);}.th,th{background:rgba(255,255,255,.035);color:#85878b;}td{color:#d4d6d3;border-bottom-color:rgba(255,255,255,.07);}tr.rowlink:hover td{background:rgba(255,255,255,.045);}.osnum{color:#f0f0ed;}
+.btn{background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.1);color:#dedfdd;}.btn:hover{background:rgba(255,255,255,.09);}.btn.primary{background:#f3f3f1;border-color:#f3f3f1;color:#222326;}.btn.primary:hover{background:#fff;}.btn.green,.btn.red{color:#1c1d1f;}
+.filter-input,.filter-select{background:rgba(16,17,19,.42);border-color:rgba(255,255,255,.09);color:#dedfdd;}.filter-select option{background:#1b1c1f;color:#dedfdd;}
+.chip.blue{background:rgba(255,255,255,.08);color:#d8d9d6;}.chip.green{background:rgba(69,201,130,.12);color:#76dba1;}.chip.yellow{background:rgba(255,255,255,.08);color:#d8d9d6;}.chip.red{background:rgba(240,106,95,.13);color:#f0a09a;}.chip.grey{background:rgba(255,255,255,.06);color:#a0a2a5;}
+.tabbar{background:rgba(16,17,19,.32);border-color:rgba(255,255,255,.075);}.tabbtn{color:#85878b;}.tabbtn.active{background:rgba(255,255,255,.075);color:#f3f3f1;border-color:#f3f3f1;}
+.modal{background:#1b1c1f;border-color:rgba(255,255,255,.1);border-top-color:#f3f3f1;}.form-grid input,.form-grid select,.form-grid textarea{background:#141517;border-color:rgba(255,255,255,.1);}.modal h3{color:#f3f3f1;}
+.plan-column{background:rgba(16,17,19,.38);}.plan-card{background:rgba(31,32,35,.7);border-color:rgba(255,255,255,.08);border-left-color:#f3f3f1;}.plan-column h3{color:#929498;}.plan-column h3 span{background:rgba(255,255,255,.07);color:#d8d9d6;}
+.progress-bar{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.08);}.progress-bar>div{background:#f3f3f1;}.toast{background:#111214;border-color:rgba(255,255,255,.1);}
+@media(max-width:600px){
+  #app.ready{display:block;overflow-x:hidden;}
+  #app.ready::after{width:420px;height:420px;right:-250px;top:-140px;}
+  .sidebar{background:rgba(18,19,22,.96);}
+  .topbar{background:rgba(24,25,28,.78);}
+}
