@@ -81,11 +81,20 @@ Usuário: qualidade
 Senha: Qualidade@123
 ```
 
-## Persistência
+## Supabase: banco e autenticação
 
-Quando nenhuma integração externa está disponível, o sistema utiliza `localStorage` do navegador com a chave `nexlog_local_db_v1`.
+O sistema usa Supabase para autenticação, API, persistência compartilhada e atualizações em tempo real.
 
-Os dados permanecem após atualizar a página no mesmo navegador e computador. O botão `Salvar users.json`, na tela de Usuários, exporta a base atualizada de usuários para um arquivo JSON.
+1. Crie um projeto em https://supabase.com.
+2. No SQL Editor, execute o arquivo `supabase-schema.sql`.
+3. Em Authentication > Users, crie as contas com estes e-mails:
+	- `admin@nexlog.app`
+	- `producao@nexlog.app`
+	- `qualidade@nexlog.app`
+4. Copie a URL e a chave anon do projeto para `supabase-config.js`.
+5. Publique os arquivos em GitHub Pages, Netlify ou Vercel.
+
+As senhas ficam somente no Supabase Auth. A tabela `nexlog_records` armazena os dados operacionais em coleções JSONB, e as policies permitem acesso apenas a usuários autenticados. O botão `Salvar users.json` continua disponível apenas para exportação.
 
 ## Perfis
 
@@ -107,9 +116,7 @@ Branch principal: `main`
 
 ## Limitações atuais
 
-Esta versão é um protótipo local. A autenticação e a persistência funcionam no navegador, mas ainda não existe backend compartilhado entre computadores.
-
-Para uso em produção, recomenda-se adicionar:
+O controle de acesso por perfil ainda é aplicado na interface. Para uso em produção, recomenda-se restringir as policies do Supabase por perfil e adicionar:
 
 - autenticação real com hash de senha;
 - banco relacional, como Supabase/PostgreSQL;

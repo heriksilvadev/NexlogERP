@@ -1,9 +1,9 @@
 /* ============================================================
-   NEXLOG — núcleo funcional
-   Persistência real via capability "db" (sobrevive a reload,
-   compartilhada entre quem abrir este artefato).
-   ============================================================ */
+  NEXLOG — núcleo funcional
+  Persistência online via Supabase.
+  ============================================================ */
 let db = null;
+let authSession = null;
 let CUR = { name:'', role:'Administrador' };
 let STATE = { clients:[], materials:[], orders:[], tools:[], cnc:[], notifications:[], users:[] };
 let VIEW = 'dashboard';
@@ -15,7 +15,6 @@ const $$ = (s,el=document)=>Array.from(el.querySelectorAll(s));
 const fmtDate = (d)=>{ if(!d) return '—'; const dt = new Date(d); if(isNaN(dt)) return d; return dt.toLocaleDateString('pt-BR'); };
 const nowStr = ()=> new Date().toLocaleString('pt-BR');
 const uid = ()=> Math.random().toString(36).slice(2,9);
-const LOCAL_DB_KEY = 'nexlog_local_db_v1';
 const toText = (value, fallback='—') => value === null || value === undefined || value === '' ? fallback : String(value);
 const normalizeDoc = (doc) => {
   if(!doc) return {};
@@ -23,93 +22,55 @@ const normalizeDoc = (doc) => {
   return { id: doc.id, ...(payload || {}) };
 };
 
-function readLocalDb(){
-  try{
-    const raw = localStorage.getItem(LOCAL_DB_KEY);
-    if(!raw) return { clients:[], materials:[], service_orders:[], tools:[], cnc:[], notifications:[], users:[] };
-    const parsed = JSON.parse(raw);
-    return {
-      clients: Array.isArray(parsed.clients) ? parsed.clients : [],
-      materials: Array.isArray(parsed.materials) ? parsed.materials : [],
-      service_orders: Array.isArray(parsed.service_orders) ? parsed.service_orders : [],
-      tools: Array.isArray(parsed.tools) ? parsed.tools : [],
-      cnc: Array.isArray(parsed.cnc) ? parsed.cnc : [],
-      notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
-      users: Array.isArray(parsed.users) ? parsed.users : []
-    };
-  }catch{return { clients:[], materials:[], service_orders:[], tools:[], cnc:[], notifications:[], users:[] };}
-}
-function writeLocalDb(data){
-  try{ localStorage.setItem(LOCAL_DB_KEY, JSON.stringify({
-    clients: Array.isArray(data.clients)?data.clients:[],
-    materials: Array.isArray(data.materials)?data.materials:[],
-    service_orders: Array.isArray(data.service_orders)?data.service_orders:[],
-    tools: Array.isArray(data.tools)?data.tools:[],
-    cnc: Array.isArray(data.cnc)?data.cnc:[],
-    notifications: Array.isArray(data.notifications)?data.notifications:[],
-    users: Array.isArray(data.users)?data.users.map(user=>{const clean={...user};delete clean.email;return clean;}):[]
-  })); }catch(e){}
-}
-function createLocalDb(){
-  const listeners = new Map();
-  const getCollection = (name)=>{
-    if(!listeners.has(name)) listeners.set(name, []);
-    const collectionListeners = listeners.get(name);
-    const records = ()=>{
-      const store = readLocalDb();
-      return store[name] || [];
-    };
-    const snapshot = ()=>({ docs: records().map(item => ({ id:item.id, data: () => ({ ...item }) })) });
-    const sync = (items)=>{
-      const store = readLocalDb();
-      store[name] = items;
-      writeLocalDb(store);
-      collectionListeners.forEach(cb=>cb(snapshot()));
-    };
-    return {
-      orderBy(field, dir='asc'){
-        return {
-          onSnapshot(cb){
-            collectionListeners.push(cb);
-            cb(snapshot());
-            return { unsubscribe:()=>{ const index=collectionListeners.indexOf(cb); if(index>=0) collectionListeners.splice(index,1); } };
-          }
-        };
-      },
-      limit(n){
-        return {
-          async get(){
-            const docs = records().slice(0, n).map(item => ({ id:item.id, data: () => ({ ...item }) }));
-            return { docs };
-          }
-        };
-      },
-      async add(data){
-        const next = { id: uid(), ...data };
-        const items = records();
-        items.push(next);
-        sync(items);
-        return { id: next.id };
-      },
-      doc(id){
-        return {
-          async update(patch){
-            const items = records();
-            const index = items.findIndex(item => item.id === id);
-            if(index >= 0){
-              items[index] = { ...items[index], ...patch };
-              sync(items);
-            }
-          },
-          async delete(){
-            const items = records().filter(item => item.id !== id);
-            sync(items);
-          }
-        };
-      }
-    };
+function createSupabaseDb(client){
+  const table = 'nexlog_records';
+  const snapshot = rows => ({ docs: (rows || []).map(row => ({ id:row.id, data:() => ({ ...(row.data || {}) }) })) });
+  const getRows = async (name, limit=1000, orderField='created_at', direction='asc') => {
+    let query = client.from(table).select('id,data,created_at').eq('collection', name).limit(limit);
+    if(orderField === 'created_at') query = query.order('created_at', { ascending: direction !== 'desc' });
+    const { data, error } = await query;
+    if(error) throw error;
+    return data || [];
   };
-  return { collection: getCollection };
+  return {
+    collection(name){
+      return {
+        orderBy(field, dir='asc'){
+          return {
+            onSnapshot(callback, onError){
+              let active = true;
+              const load = async()=>{ try { if(active) callback(snapshot(await getRows(name, 1000, field, dir))); } catch(error){ if(active && onError) onError(error); } };
+              load();
+              const channel = client.channel(`nexlog-${name}-${uid()}`).on('postgres_changes', {event:'*', schema:'public', table, filter:`collection=eq.${name}`}, load).subscribe();
+              return { unsubscribe:()=>{ active=false; client.removeChannel(channel); } };
+            }
+          };
+        },
+        limit(n){
+          return { async get(){ return { docs:snapshot(await getRows(name, n)).docs }; } };
+        },
+        async add(data){
+          const { data:row, error } = await client.from(table).insert({ collection:name, data }).select('id').single();
+          if(error) throw error;
+          return { id:row.id };
+        },
+        doc(id){
+          return {
+            async update(patch){
+              const { data:row, error:getError } = await client.from(table).select('data').eq('id', id).single();
+              if(getError) throw getError;
+              const { error } = await client.from(table).update({ data:{ ...(row.data || {}), ...patch } }).eq('id', id);
+              if(error) throw error;
+            },
+            async delete(){
+              const { error } = await client.from(table).delete().eq('id', id);
+              if(error) throw error;
+            }
+          };
+        }
+      };
+    }
+  };
 }
 
 function toast(msg){
@@ -120,13 +81,18 @@ function toast(msg){
 /* ---------------- BOOT ---------------- */
 async function boot(){
   try{
-    if (window.claude && typeof window.claude.use === 'function') {
-      db = await window.claude.use('db');
-    }
-  }catch(e){ db = null; }
-
-  if(!db){
-    db = createLocalDb();
+    const config = window.NEXLOG_SUPABASE_CONFIG || {};
+    if(!config.url || !config.anonKey || config.url.includes('SEU_')) throw new Error('Configure o Supabase em supabase-config.js.');
+    const client = window.supabase.createClient(config.url, config.anonKey);
+      window.supabaseClient = client;
+    db = createSupabaseDb(client);
+    const { data } = await client.auth.getSession();
+    authSession = data.session;
+    client.auth.onAuthStateChange((_event, session)=>{ authSession=session; if(!session) doLogout(false); });
+  }catch(e){
+    db = null;
+    $('#login-error').textContent = e.message;
+    return;
   }
 
   $('#login-btn').addEventListener('click', doLogin);
@@ -136,11 +102,7 @@ async function boot(){
   $('#login-magic').addEventListener('click', ()=>toast('O acesso por link mágico ainda depende de um servidor de autenticação.'));
   $('#login-sso').addEventListener('click', ()=>toast('O login corporativo será conectado ao provedor da empresa.'));
   $('#top-notifications').addEventListener('click', ()=>{ VIEW='notificacoes'; OS_OPEN=null; renderView(); });
-  const store = readLocalDb();
-  if(!store.clients.length && !store.materials.length && !store.service_orders.length){
-    await seedDemoData();
-  }
-  await seedOperationalData();
+  if(authSession) await finishLogin();
 }
 async function doLogin(){
   const usuario = $('#login-usuario').value.trim().toLowerCase();
@@ -148,9 +110,17 @@ async function doLogin(){
   const error = $('#login-error');
   error.textContent = '';
   if(!usuario || !password){ error.textContent = 'Informe usuário e senha para entrar.'; return; }
+  if(!db){ error.textContent = 'Configure a conexão com o Supabase.'; return; }
+  const email = `${usuario}@nexlog.app`;
+  const { data, error:authError } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+  if(authError || !data.session){ error.textContent = 'Usuário ou senha inválidos.'; return; }
+  authSession = data.session;
+  await finishLogin();
+}
+async function finishLogin(){
   const result = await db.collection('users').limit(100).get();
-  const account = result.docs.map(normalizeDoc).find(user=>user.usuario?.toLowerCase()===usuario && user.senha===password && user.status!=='Inativo');
-  if(!account){ error.textContent = 'Usuário ou senha inválidos.'; return; }
+  const account = result.docs.map(normalizeDoc).find(user=>user.usuario?.toLowerCase() === authSession.user.email.split('@')[0].toLowerCase() && user.status!=='Inativo');
+  if(!account){ await window.supabaseClient.auth.signOut(); authSession=null; $('#login-error').textContent='Perfil de usuário não encontrado.'; return; }
   CUR = { name: account.nome, role: account.perfil, usuario: account.usuario };
   $('#login-screen').style.display='none';
   $('#app').classList.add('ready');
@@ -159,7 +129,17 @@ async function doLogin(){
   $('#user-avatar').textContent = CUR.name.charAt(0).toUpperCase();
   $('#top-avatar').textContent = CUR.name.charAt(0).toUpperCase();
   applyPermissions();
+  await seedDemoData();
+  await seedOperationalData();
   subscribeAll();
+}
+async function doLogout(signOut=true){
+  if(signOut && window.supabaseClient) await window.supabaseClient.auth.signOut();
+  authSession = null;
+  CUR = { name:'', role:'Administrador', usuario:'' };
+  $('#app').classList.remove('ready');
+  $('#login-screen').style.display='flex';
+  $('#login-password').value='';
 }
 function applyPermissions(){
   const access={
@@ -175,13 +155,7 @@ function applyPermissions(){
   $$('.navitem').forEach(item=>item.style.display=allowed.includes(item.dataset.view)?'flex':'none');
   if(!allowed.includes(VIEW)){VIEW='dashboard';}
 }
-$('#logout-btn').addEventListener('click', ()=>{
-  CUR = { name:'', role:'Administrador', usuario:'' };
-  $('#app').classList.remove('ready');
-  $('#login-screen').style.display='flex';
-  $('#login-password').value='';
-  $('#login-error').textContent='';
-});
+$('#logout-btn').addEventListener('click', ()=>doLogout());
 function setMobileMenu(open){
   $('#sidebar').classList.toggle('open', open);
   $('#mobile-overlay').classList.toggle('show', open);
@@ -192,8 +166,8 @@ $('#mobile-overlay').addEventListener('click', ()=>setMobileMenu(false));
 
 /* ---------------- LIVE SUBSCRIPTIONS ---------------- */
 function subscribeAll(){
-  if(!db) { seedIfEmptyFallback(); renderView(); return; }
-  db.collection('clients').orderBy('nome').onSnapshot(snap=>{
+  if(!db) return;
+    db.collection('clients').orderBy('nome').onSnapshot(snap => {
     STATE.clients = snap.docs.map(normalizeDoc);
     renderView();
   }, err=> toast('Erro ao carregar clientes: '+err.code));
@@ -219,17 +193,6 @@ function subscribeAll(){
     }, err=> toast('Erro ao carregar '+name+': '+err.code));
   });
 }
-// fallback so the UI still renders something explanatory if db is unavailable
-function seedIfEmptyFallback(){
-  const store = readLocalDb();
-  STATE.clients = store.clients || [];
-  STATE.materials = store.materials || [];
-  STATE.orders = store.service_orders || [];
-  STATE.tools = store.tools || [];
-  STATE.cnc = store.cnc || [];
-  STATE.notifications = store.notifications || [];
-  STATE.users = store.users || [];
-}
 
 /* ---------------- SEED (apenas se banco vazio) ---------------- */
 async function seedDemoData(){
@@ -239,7 +202,6 @@ async function seedDemoData(){
     const c1 = await db.collection('clients').add({nome:'Empresa ABC', contato:'Marcos Lima', telefone:'(24) 99900-1122', endereco:'Av. Central, 480 - Barra do Piraí/RJ'});
     const c2 = await db.collection('clients').add({nome:'Empresa XYZ', contato:'Renata Souza', telefone:'(24) 99911-3344', endereco:'Rua das Flores, 12 - Volta Redonda/RJ'});
     const c3 = await db.collection('clients').add({nome:'Loja Central', contato:'Paulo Vieira', telefone:'(24) 99922-5566', endereco:'Praça XV, 90 - Barra do Piraí/RJ'});
-
     const mats = [
       {codigo:'MAT-001', nome:'ACM 3mm branco', unidade:'chapa', estoque_minimo:10, estoque_fisico:20, reservado:8},
       {codigo:'MAT-002', nome:'Acrílico 4mm transparente', unidade:'placa', estoque_minimo:5, estoque_fisico:9, reservado:2},
@@ -305,19 +267,10 @@ async function seedOperationalData(){
   const users = await db.collection('users').limit(100).get();
   if(!users.docs.length){
     for(const user of [
-      {nome:'Administrador', usuario:'admin', senha:'Nexlog@123', perfil:'Administrador', status:'Ativo', created_at:Date.now()},
-      {nome:'Equipe de Produção', usuario:'producao', senha:'Producao@123', perfil:'Produção', status:'Ativo', created_at:Date.now()-1},
-      {nome:'Equipe de Qualidade', usuario:'qualidade', senha:'Qualidade@123', perfil:'Qualidade', status:'Ativo', created_at:Date.now()-2}
+      {nome:'Administrador', usuario:'admin', perfil:'Administrador', status:'Ativo', created_at:Date.now()},
+      {nome:'Equipe de Produção', usuario:'producao', perfil:'Produção', status:'Ativo', created_at:Date.now()-1},
+      {nome:'Equipe de Qualidade', usuario:'qualidade', perfil:'Qualidade', status:'Ativo', created_at:Date.now()-2}
     ]) await db.collection('users').add(user);
-  } else {
-    const existingUsers = users.docs.map(normalizeDoc);
-    const defaultUsers = { 'admin@nexlog.local':'admin', 'producao@nexlog.local':'producao', 'qualidade@nexlog.local':'qualidade' };
-    const defaultPasswords = { 'admin@nexlog.local':'Nexlog@123', 'producao@nexlog.local':'Producao@123', 'qualidade@nexlog.local':'Qualidade@123' };
-    for(const user of existingUsers){
-      const senha = user.senha || defaultPasswords[user.email?.toLowerCase()];
-      const usuario = user.usuario || defaultUsers[user.email?.toLowerCase()] || (user.nome||'usuario').toLowerCase().replace(/[^a-z0-9]+/g,'-');
-      if(senha || usuario) await db.collection('users').doc(user.id).update({senha, usuario});
-    }
   }
 }
 function addDays(n){ const d = new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
@@ -1130,7 +1083,22 @@ async function exportUsersJson(){
   setTimeout(()=>{link.remove();URL.revokeObjectURL(url);},1000);
   toast('users.json baixado.');
 }
-function openUserModal(){$('#modal-inner').innerHTML=`<h3>Novo usuário</h3><div class="form-grid"><div><label>Nome</label><input id="f-unome"></div><div><label>Nome de usuário</label><input id="f-uusuario" autocomplete="username"></div><div><label>Senha</label><input id="f-usenha" type="password" autocomplete="new-password"></div><div><label>Perfil</label><select id="f-uperfil"><option>Administrador</option><option>Atendimento</option><option>Produção</option><option>Estoque</option><option>Qualidade</option><option>Instalação</option><option>Pós-venda</option></select></div></div><div class="modal-actions"><button class="btn ghost" id="m-cancel">Cancelar</button><button class="btn primary" id="m-save">Salvar</button></div>`;showModal();$('#m-cancel').addEventListener('click',closeModal);$('#m-save').addEventListener('click',async()=>{const nome=$('#f-unome').value.trim(),usuario=$('#f-uusuario').value.trim().toLowerCase(),senha=$('#f-usenha').value;if(!nome||!usuario||!senha){toast('Informe nome, usuário e senha.');return;}await db.collection('users').add({nome,usuario,senha,perfil:$('#f-uperfil').value,status:'Ativo',created_at:Date.now()});closeModal();toast('Usuário salvo localmente. Clique em “Salvar users.json” para atualizar o arquivo.');});}
+function openUserModal(){
+  $('#modal-inner').innerHTML=`<h3>Novo usuário</h3><div class="form-grid"><div><label>Nome</label><input id="f-unome"></div><div><label>Nome de usuário</label><input id="f-uusuario" autocomplete="username"></div><div><label>Senha</label><input id="f-usenha" type="password" autocomplete="new-password"></div><div><label>Perfil</label><select id="f-uperfil"><option>Administrador</option><option>Atendimento</option><option>Produção</option><option>Estoque</option><option>Qualidade</option><option>Instalação</option><option>Pós-venda</option></select></div></div><div class="modal-actions"><button class="btn ghost" id="m-cancel">Cancelar</button><button class="btn primary" id="m-save">Salvar</button></div>`;
+  showModal();
+  $('#m-cancel').addEventListener('click',closeModal);
+  $('#m-save').addEventListener('click',async()=>{
+    const nome=$('#f-unome').value.trim(), usuario=$('#f-uusuario').value.trim().toLowerCase(), senha=$('#f-usenha').value;
+    if(!nome||!usuario||!senha){toast('Informe nome, usuário e senha.');return;}
+    const previousSession = authSession;
+    const { data, error } = await window.supabaseClient.auth.signUp({email:`${usuario}@nexlog.app`,password:senha});
+    if(error){toast('Não foi possível criar o usuário: '+error.message);return;}
+    if(data.session && previousSession) await window.supabaseClient.auth.setSession({access_token:previousSession.access_token,refresh_token:previousSession.refresh_token});
+    await db.collection('users').add({nome,usuario,perfil:$('#f-uperfil').value,status:'Ativo',created_at:Date.now()});
+    closeModal();
+    toast('Usuário criado no Supabase Auth.');
+  });
+}
 
 /* ================= INDICADORES ================= */
 function viewIndicadores(){

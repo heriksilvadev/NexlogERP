@@ -2,3 +2,4 @@
 *.log
 *.tmp
 Thumbs.db
+supabase-config.local.js
