@@ -12,6 +12,8 @@ let OS_TAB = 'resumo';
 
 const $ = (s,el=document)=>el.querySelector(s);
 const $$ = (s,el=document)=>Array.from(el.querySelectorAll(s));
+// Liga um evento só se o elemento existir (evita TypeError e tela cinza)
+const on = (sel, ev, fn) => { const el = $(sel); if(el) el.addEventListener(ev, fn); };
 const fmtDate = (d)=>{ if(!d) return '—'; const dt = new Date(d); if(isNaN(dt)) return d; return dt.toLocaleDateString('pt-BR'); };
 const nowStr = ()=> new Date().toLocaleString('pt-BR');
 const uid = ()=> Math.random().toString(36).slice(2,9);
@@ -74,12 +76,14 @@ function createSupabaseDb(client){
 }
 
 function toast(msg){
-  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  const t = $('#toast'); if(!t) return;
+  t.textContent = msg; t.classList.add('show');
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2400);
 }
 
 /* ---------------- BOOT ---------------- */
 const SUPABASE_TIMEOUT = 12000;
+let LOGIN_BOUND = false;
 
 function withTimeout(promise, ms=SUPABASE_TIMEOUT){
   return Promise.race([
@@ -88,12 +92,21 @@ function withTimeout(promise, ms=SUPABASE_TIMEOUT){
   ]);
 }
 
+// Aceita a URL certa e também corrige o link do painel (supabase.com/dashboard/project/<ref>)
+function normalizeSupabaseUrl(raw){
+  const url = String(raw || '').trim();
+  const m = url.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
+  if(m) return `https://${m[1]}.supabase.co`;
+  return url.replace(/\/+$/, '');
+}
+
 function showLogin(message=''){
   const login = $('#login-screen');
   const app = $('#app');
   if(login) login.style.display='flex';
   if(app) app.classList.remove('ready');
-  if(message) $('#login-error').textContent = message;
+  const err = $('#login-error');
+  if(err) err.textContent = message || '';
 }
 
 function showApp(){
@@ -103,29 +116,55 @@ function showApp(){
   if(app) app.classList.add('ready');
 }
 
+function bindLoginUI(){
+  if(LOGIN_BOUND) return;
+  LOGIN_BOUND = true;
+  on('#login-btn', 'click', doLogin);
+  on('#login-usuario', 'keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  on('#login-password', 'keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  on('#login-back', 'click', ()=>{
+    const u = $('#login-usuario'), p = $('#login-password'), er = $('#login-error');
+    if(u) u.value=''; if(p) p.value=''; if(er) er.textContent='';
+    if(u) u.focus();
+  });
+  on('#login-magic', 'click', ()=>toast('O acesso por link mágico ainda depende de um servidor de autenticação.'));
+  on('#login-sso', 'click', ()=>toast('O login corporativo será conectado ao provedor da empresa.'));
+  on('#top-notifications', 'click', ()=>{ VIEW='notificacoes'; OS_OPEN=null; renderView(); });
+}
+
+// Rede de segurança: erro inesperado antes do app abrir cai na tela de login, nunca em tela cinza.
+window.addEventListener('error', e=>{
+  console.error('Erro global:', e.error || e.message);
+  const app = $('#app');
+  if(!app || !app.classList.contains('ready')) showLogin('Erro ao carregar o sistema. Recarregue a página.');
+});
+window.addEventListener('unhandledrejection', e=>{
+  console.error('Promise rejeitada:', e.reason);
+});
+
 async function boot(){
-  // Nunca deixa o usuário preso em uma tela vazia enquanto o Supabase inicia.
+  bindLoginUI();                       // login sempre funcional, mesmo se o Supabase falhar
   showLogin('Conectando ao sistema...');
 
   try{
     const config = window.NEXLOG_SUPABASE_CONFIG || {};
-    if(!config.url || !config.anonKey || config.url.includes('SEU_')){
+    const url = normalizeSupabaseUrl(config.url);
+    if(!url || !config.anonKey || url.includes('SEU_')){
       throw new Error('Configure o Supabase em supabase-config.js.');
     }
+    if(!window.supabase || !window.supabase.createClient){
+      throw new Error('A biblioteca do Supabase não foi carregada.');
+    }
 
-    const client = window.supabase.createClient(config.url, config.anonKey);
+    const client = window.supabase.createClient(url, config.anonKey);
     window.supabaseClient = client;
     db = createSupabaseDb(client);
 
-    const { data, error } = await withTimeout(client.auth.getSession());
-    if(error) throw error;
-    authSession = data.session;
-
-    client.auth.onAuthStateChange((_event, session)=>{
+    client.auth.onAuthStateChange((event, session)=>{
+      const hadSession = !!authSession;
       authSession = session;
-      if(!session) showLogin('Sua sessão expirou. Entre novamente.');
+      if(event === 'SIGNED_OUT' && hadSession) showLogin('Sua sessão expirou. Entre novamente.');
     });
-
   }catch(e){
     console.error('Falha ao iniciar o Supabase:', e);
     db = null;
@@ -134,18 +173,15 @@ async function boot(){
     return;
   }
 
-  $('#login-btn').addEventListener('click', doLogin);
-  $('#login-usuario').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
-  $('#login-password').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
-  $('#login-back').addEventListener('click', ()=>{
-    $('#login-usuario').value='';
-    $('#login-password').value='';
-    $('#login-error').textContent='';
-    $('#login-usuario').focus();
-  });
-  $('#login-magic').addEventListener('click', ()=>toast('O acesso por link mágico ainda depende de um servidor de autenticação.'));
-  $('#login-sso').addEventListener('click', ()=>toast('O login corporativo será conectado ao provedor da empresa.'));
-  $('#top-notifications').addEventListener('click', ()=>{ VIEW='notificacoes'; OS_OPEN=null; renderView(); });
+  // Se a leitura da sessão falhar ou demorar, segue para o login normal em vez de travar.
+  try{
+    const { data, error } = await withTimeout(window.supabaseClient.auth.getSession());
+    if(error) throw error;
+    authSession = data.session;
+  }catch(e){
+    console.warn('Não foi possível ler a sessão:', e);
+    authSession = null;
+  }
 
   if(authSession) await finishLogin();
   else showLogin('');
@@ -162,7 +198,7 @@ async function doLogin(){
     return;
   }
   if(!db || !window.supabaseClient){
-    error.textContent = 'O Supabase está indisponível. Tente novamente em instantes.';
+    error.textContent = 'O Supabase está indisponível. Recarregue a página e tente novamente.';
     return;
   }
 
@@ -209,10 +245,11 @@ async function finishLogin(){
     }
 
     CUR = { name: account.nome, role: account.perfil, usuario: account.usuario };
-    $('#user-name-lbl').textContent = CUR.name;
-    $('#user-role-lbl').textContent = CUR.role;
-    $('#user-avatar').textContent = CUR.name.charAt(0).toUpperCase();
-    $('#top-avatar').textContent = CUR.name.charAt(0).toUpperCase();
+    const setTxt = (sel, txt)=>{ const el = $(sel); if(el) el.textContent = txt; };
+    setTxt('#user-name-lbl', CUR.name);
+    setTxt('#user-role-lbl', CUR.role);
+    setTxt('#user-avatar', CUR.name.charAt(0).toUpperCase());
+    setTxt('#top-avatar', CUR.name.charAt(0).toUpperCase());
     applyPermissions();
 
     // O banco pode estar temporariamente indisponível. Isso não deve gerar tela preta.
@@ -240,7 +277,7 @@ async function doLogout(signOut=true){
   authSession = null;
   CUR = { name:'', role:'Administrador', usuario:'' };
   showLogin('');
-  $('#login-password').value='';
+  const p = $('#login-password'); if(p) p.value='';
 }
 
 function applyPermissions(){
@@ -257,27 +294,28 @@ function applyPermissions(){
   $$('.navitem').forEach(item=>item.style.display=allowed.includes(item.dataset.view)?'flex':'none');
   if(!allowed.includes(VIEW)){VIEW='dashboard';}
 }
-$('#logout-btn').addEventListener('click', ()=>doLogout());
+
+on('#logout-btn', 'click', ()=>doLogout());
 function setMobileMenu(open){
-  $('#sidebar').classList.toggle('open', open);
-  $('#mobile-overlay').classList.toggle('show', open);
-  $('#mobile-overlay').setAttribute('aria-hidden', String(!open));
+  const sb = $('#sidebar'), ov = $('#mobile-overlay');
+  if(sb) sb.classList.toggle('open', open);
+  if(ov){ ov.classList.toggle('show', open); ov.setAttribute('aria-hidden', String(!open)); }
 }
-$('#menu-toggle').addEventListener('click', ()=> setMobileMenu(!$('#sidebar').classList.contains('open')));
-$('#mobile-overlay').addEventListener('click', ()=>setMobileMenu(false));
+on('#menu-toggle', 'click', ()=>{ const sb = $('#sidebar'); setMobileMenu(!(sb && sb.classList.contains('open'))); });
+on('#mobile-overlay', 'click', ()=>setMobileMenu(false));
 
 /* ---------------- LIVE SUBSCRIPTIONS ---------------- */
 function subscribeAll(){
   if(!db) return;
-    db.collection('clients').orderBy('nome').onSnapshot(snap => {
+  db.collection('clients').orderBy('nome').onSnapshot(snap => {
     STATE.clients = snap.docs.map(normalizeDoc);
     renderView();
-  }, err=> toast('Erro ao carregar clientes: '+err.code));
+  }, err=> toast('Erro ao carregar clientes: '+(err.code||err.message)));
 
   db.collection('materials').orderBy('nome').onSnapshot(snap=>{
     STATE.materials = snap.docs.map(normalizeDoc);
     renderView();
-  }, err=> toast('Erro ao carregar materiais: '+err.code));
+  }, err=> toast('Erro ao carregar materiais: '+(err.code||err.message)));
 
   db.collection('service_orders').orderBy('numero','desc').onSnapshot(snap=>{
     STATE.orders = snap.docs.map(normalizeDoc);
@@ -286,13 +324,13 @@ function subscribeAll(){
       seedDemoData();
     }
     renderView();
-  }, err=> toast('Erro ao carregar OS: '+err.code));
+  }, err=> toast('Erro ao carregar OS: '+(err.code||err.message)));
 
   ['tools','cnc','notifications','users'].forEach(name=>{
     db.collection(name).orderBy('created_at','desc').onSnapshot(snap=>{
       STATE[name] = snap.docs.map(normalizeDoc);
       renderView();
-    }, err=> toast('Erro ao carregar '+name+': '+err.code));
+    }, err=> toast('Erro ao carregar '+name+': '+(err.code||err.message)));
   });
 }
 
@@ -463,18 +501,20 @@ function statusLabel(s){
 function renderView(){
   setActiveNav();
   const c = $('#content');
+  if(!c) return;
   if(OS_OPEN){ renderOSDetail(); return; }
-  if(VIEW==='dashboard'){ $('#view-title').textContent='Dashboard'; $('#view-sub').textContent='Visão geral da operação em tempo real'; c.innerHTML = viewDashboard(); bindDashboard(); }
-  else if(VIEW==='os'){ $('#view-title').textContent='Ordens de Serviço'; $('#view-sub').textContent='Todas as OS cadastradas no sistema'; c.innerHTML = viewOSList(); bindOSList(); }
-  else if(VIEW==='clientes'){ $('#view-title').textContent='Clientes'; $('#view-sub').textContent='Cadastro de clientes'; c.innerHTML = viewClientes(); bindClientes(); }
-  else if(VIEW==='materiais'){ $('#view-title').textContent='Materiais & Estoque'; $('#view-sub').textContent='Catálogo, estoque físico e reservas'; c.innerHTML = viewMateriais(); bindMateriais(); }
-  else if(VIEW==='planejamento'){ $('#view-title').textContent='Planejamento'; $('#view-sub').textContent='Fila operacional e programação das equipes'; c.innerHTML = viewPlanejamento(); bindPlanejamento(); }
-  else if(VIEW==='ferramentas'){ $('#view-title').textContent='Ferramentas'; $('#view-sub').textContent='Disponibilidade, estado e manutenção'; c.innerHTML = viewFerramentas(); bindFerramentas(); }
-  else if(VIEW==='cnc'){ $('#view-title').textContent='Terceirização / CNC'; $('#view-sub').textContent='Serviços externos vinculados às OS'; c.innerHTML = viewCnc(); bindCnc(); }
-  else if(VIEW==='indicadores'){ $('#view-title').textContent='Indicadores'; $('#view-sub').textContent='Dados calculados a partir das OS cadastradas'; c.innerHTML = viewIndicadores(); }
-  else if(VIEW==='pendencias'){ $('#view-title').textContent='Pendências'; $('#view-sub').textContent='Itens que exigem atenção agora'; c.innerHTML = viewPendencias(); bindPendList(); }
-  else if(VIEW==='notificacoes'){ $('#view-title').textContent='Notificações'; $('#view-sub').textContent='Alertas gerados pelo andamento da operação'; c.innerHTML = viewNotificacoes(); bindNotificacoes(); }
-  else if(VIEW==='usuarios'){ $('#view-title').textContent='Usuários'; $('#view-sub').textContent='Perfis e permissões de acesso'; c.innerHTML = viewUsuarios(); bindUsuarios(); }
+  const head = (t,s)=>{ const a=$('#view-title'), b=$('#view-sub'); if(a) a.textContent=t; if(b) b.textContent=s; };
+  if(VIEW==='dashboard'){ head('Dashboard','Visão geral da operação em tempo real'); c.innerHTML = viewDashboard(); bindDashboard(); }
+  else if(VIEW==='os'){ head('Ordens de Serviço','Todas as OS cadastradas no sistema'); c.innerHTML = viewOSList(); bindOSList(); }
+  else if(VIEW==='clientes'){ head('Clientes','Cadastro de clientes'); c.innerHTML = viewClientes(); bindClientes(); }
+  else if(VIEW==='materiais'){ head('Materiais & Estoque','Catálogo, estoque físico e reservas'); c.innerHTML = viewMateriais(); bindMateriais(); }
+  else if(VIEW==='planejamento'){ head('Planejamento','Fila operacional e programação das equipes'); c.innerHTML = viewPlanejamento(); bindPlanejamento(); }
+  else if(VIEW==='ferramentas'){ head('Ferramentas','Disponibilidade, estado e manutenção'); c.innerHTML = viewFerramentas(); bindFerramentas(); }
+  else if(VIEW==='cnc'){ head('Terceirização / CNC','Serviços externos vinculados às OS'); c.innerHTML = viewCnc(); bindCnc(); }
+  else if(VIEW==='indicadores'){ head('Indicadores','Dados calculados a partir das OS cadastradas'); c.innerHTML = viewIndicadores(); }
+  else if(VIEW==='pendencias'){ head('Pendências','Itens que exigem atenção agora'); c.innerHTML = viewPendencias(); bindPendList(); }
+  else if(VIEW==='notificacoes'){ head('Notificações','Alertas gerados pelo andamento da operação'); c.innerHTML = viewNotificacoes(); bindNotificacoes(); }
+  else if(VIEW==='usuarios'){ head('Usuários','Perfis e permissões de acesso'); c.innerHTML = viewUsuarios(); bindUsuarios(); }
 }
 
 /* ================= DASHBOARD ================= */
@@ -533,7 +573,7 @@ function viewDashboard(){
 }
 function bindDashboard(){
   $$('.pend-item').forEach(el=>el.addEventListener('click', ()=>{ OS_OPEN = el.dataset.os; OS_TAB='resumo'; renderView(); }));
-  const more = $('[data-view="pendencias"]'); if(more) more.addEventListener('click', ()=>{VIEW='pendencias'; renderView();});
+  const more = $('#content [data-view="pendencias"]'); if(more) more.addEventListener('click', ()=>{VIEW='pendencias'; renderView();});
 }
 
 /* ================= PENDÊNCIAS (full) ================= */
@@ -907,7 +947,7 @@ function tabProducao(os, gates){
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn primary" id="prod-start" ${!gates.producao.ok || os.producao_status==='em_producao' || os.producao_status==='concluida' ? 'disabled':''}>▶️ Iniciar produção</button>
       <button class="btn" id="prod-pause" ${os.producao_status!=='em_producao'?'disabled':''}>⏸ Pausar</button>
-      <button class="btn green" id="prod-finish" ${os.producao_status==='concluida'?'disabled':''} ${os.producao_status==='aguardando'?'disabled':''}>⏹ Finalizar produção</button>
+      <button class="btn green" id="prod-finish" ${os.producao_status==='concluida'||os.producao_status==='aguardando'?'disabled':''}>⏹ Finalizar produção</button>
     </div>
     <div style="margin-top:14px;font-size:12.5px;color:var(--ink2);">
       ${os.producao_inicio? 'Início: '+os.producao_inicio : ''} ${os.producao_fim? ' · Fim: '+os.producao_fim : ''}
@@ -1130,11 +1170,14 @@ function renderToolRows(){
   const rows=STATE.tools.filter(t=>(t.nome||'').toLowerCase().includes(q)||(t.codigo||'').toLowerCase().includes(q));
   return rows.length?rows.map(t=>`<tr><td class="mono">${toText(t.codigo)}</td><td><b>${toText(t.nome)}</b></td><td>${toText(t.quantidade,0)}</td><td><span class="chip ${Number(t.disponivel)>0?'green':'red'}">${toText(t.disponivel,0)}</span></td><td>${toText(t.estado)}</td><td>${toText(t.manutencao)}</td><td><button class="btn sm ghost" data-tool-edit="${t.id}">Editar</button><button class="btn sm ghost" data-tool-del="${t.id}">Excluir</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nenhuma ferramenta cadastrada.</td></tr>';
 }
-function bindFerramentas(){
-  $('#tool-search').addEventListener('input',()=>$('#tool-tbody').innerHTML=renderToolRows());
-  $('#tool-new').addEventListener('click',()=>openToolModal());
+function bindToolButtons(){
   $$('[data-tool-edit]').forEach(b=>b.addEventListener('click',()=>openToolModal(b.dataset.toolEdit)));
   $$('[data-tool-del]').forEach(b=>b.addEventListener('click',async()=>{if(confirm('Excluir esta ferramenta?')){await db.collection('tools').doc(b.dataset.toolDel).delete();toast('Ferramenta excluída.');}}));
+}
+function bindFerramentas(){
+  $('#tool-search').addEventListener('input',()=>{ $('#tool-tbody').innerHTML=renderToolRows(); bindToolButtons(); });
+  $('#tool-new').addEventListener('click',()=>openToolModal());
+  bindToolButtons();
 }
 function openToolModal(id){
   const t=id?STATE.tools.find(x=>x.id===id):{codigo:'',nome:'',quantidade:1,disponivel:1,estado:'Boa',manutencao:'Em dia',responsavel:''};
@@ -1244,22 +1287,19 @@ function viewIndicadores(){
 }
 
 /* ---------------- MODAL HELPERS ---------------- */
-function showModal(){ $('#modal-bg').classList.add('show'); }
-function closeModal(){ $('#modal-bg').classList.remove('show'); }
-$('#modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
+function showModal(){ const m = $('#modal-bg'); if(m) m.classList.add('show'); }
+function closeModal(){ const m = $('#modal-bg'); if(m) m.classList.remove('show'); }
+on('#modal-bg', 'click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
 
 /* ---------------- GLOBAL SEARCH ---------------- */
-$('#global-search').addEventListener('input', e=>{
-  const q = e.target.value.trim();
-  if(q.length<2) return;
-});
-$('#global-search').addEventListener('keydown', e=>{
+on('#global-search', 'keydown', e=>{
   if(e.key==='Enter'){
     const q = e.target.value.toLowerCase();
-    const hit = STATE.orders.find(o=>o.numero.includes(q) || (o.cliente_nome||'').toLowerCase().includes(q) || (o.servico||'').toLowerCase().includes(q));
+    const hit = STATE.orders.find(o=> String(o.numero||'').includes(q) || (o.cliente_nome||'').toLowerCase().includes(q) || (o.servico||'').toLowerCase().includes(q));
     if(hit){ OS_OPEN = hit.id; OS_TAB='resumo'; renderView(); }
-    else { VIEW='os'; renderView(); setTimeout(()=>{ $('#os-search').value=q; renderOSTbody(); },0); }
+    else { VIEW='os'; renderView(); setTimeout(()=>{ const s=$('#os-search'); if(s){ s.value=q; renderOSTbody(); } },0); }
   }
 });
 
-boot();
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
