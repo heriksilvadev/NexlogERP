@@ -79,68 +79,170 @@ function toast(msg){
 }
 
 /* ---------------- BOOT ---------------- */
+const SUPABASE_TIMEOUT = 12000;
+
+function withTimeout(promise, ms=SUPABASE_TIMEOUT){
+  return Promise.race([
+    promise,
+    new Promise((_, reject)=>setTimeout(()=>reject(new Error('O Supabase demorou para responder.')), ms))
+  ]);
+}
+
+function showLogin(message=''){
+  const login = $('#login-screen');
+  const app = $('#app');
+  if(login) login.style.display='flex';
+  if(app) app.classList.remove('ready');
+  if(message) $('#login-error').textContent = message;
+}
+
+function showApp(){
+  const login = $('#login-screen');
+  const app = $('#app');
+  if(login) login.style.display='none';
+  if(app) app.classList.add('ready');
+}
+
 async function boot(){
+  // Nunca deixa o usuário preso em uma tela vazia enquanto o Supabase inicia.
+  showLogin('Conectando ao sistema...');
+
   try{
     const config = window.NEXLOG_SUPABASE_CONFIG || {};
-    if(!config.url || !config.anonKey || config.url.includes('SEU_')) throw new Error('Configure o Supabase em supabase-config.js.');
+    if(!config.url || !config.anonKey || config.url.includes('SEU_')){
+      throw new Error('Configure o Supabase em supabase-config.js.');
+    }
+
     const client = window.supabase.createClient(config.url, config.anonKey);
-      window.supabaseClient = client;
+    window.supabaseClient = client;
     db = createSupabaseDb(client);
-    const { data } = await client.auth.getSession();
+
+    const { data, error } = await withTimeout(client.auth.getSession());
+    if(error) throw error;
     authSession = data.session;
-    client.auth.onAuthStateChange((_event, session)=>{ authSession=session; if(!session) doLogout(false); });
+
+    client.auth.onAuthStateChange((_event, session)=>{
+      authSession = session;
+      if(!session) showLogin('Sua sessão expirou. Entre novamente.');
+    });
+
   }catch(e){
+    console.error('Falha ao iniciar o Supabase:', e);
     db = null;
-    $('#login-error').textContent = e.message;
+    authSession = null;
+    showLogin('Não foi possível conectar ao Supabase. Verifique sua internet e tente novamente.');
     return;
   }
 
   $('#login-btn').addEventListener('click', doLogin);
   $('#login-usuario').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
   $('#login-password').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
-  $('#login-back').addEventListener('click', ()=>{ $('#login-usuario').value=''; $('#login-password').value=''; $('#login-error').textContent=''; $('#login-usuario').focus(); });
+  $('#login-back').addEventListener('click', ()=>{
+    $('#login-usuario').value='';
+    $('#login-password').value='';
+    $('#login-error').textContent='';
+    $('#login-usuario').focus();
+  });
   $('#login-magic').addEventListener('click', ()=>toast('O acesso por link mágico ainda depende de um servidor de autenticação.'));
   $('#login-sso').addEventListener('click', ()=>toast('O login corporativo será conectado ao provedor da empresa.'));
   $('#top-notifications').addEventListener('click', ()=>{ VIEW='notificacoes'; OS_OPEN=null; renderView(); });
+
   if(authSession) await finishLogin();
+  else showLogin('');
 }
+
 async function doLogin(){
   const usuario = $('#login-usuario').value.trim().toLowerCase();
   const password = $('#login-password').value;
   const error = $('#login-error');
   error.textContent = '';
-  if(!usuario || !password){ error.textContent = 'Informe usuário e senha para entrar.'; return; }
-  if(!db){ error.textContent = 'Configure a conexão com o Supabase.'; return; }
-  const email = `${usuario}@nexlog.app`;
-  const { data, error:authError } = await window.supabaseClient.auth.signInWithPassword({ email, password });
-  if(authError || !data.session){ error.textContent = 'Usuário ou senha inválidos.'; return; }
-  authSession = data.session;
-  await finishLogin();
+
+  if(!usuario || !password){
+    error.textContent = 'Informe usuário e senha para entrar.';
+    return;
+  }
+  if(!db || !window.supabaseClient){
+    error.textContent = 'O Supabase está indisponível. Tente novamente em instantes.';
+    return;
+  }
+
+  const button = $('#login-btn');
+  if(button) button.disabled = true;
+  error.textContent = 'Entrando...';
+
+  try{
+    const email = `${usuario}@nexlog.app`;
+    const { data, error:authError } = await withTimeout(
+      window.supabaseClient.auth.signInWithPassword({ email, password })
+    );
+
+    if(authError || !data.session){
+      error.textContent = 'Usuário ou senha inválidos.';
+      return;
+    }
+
+    authSession = data.session;
+    await finishLogin();
+  }catch(e){
+    console.error('Erro no login:', e);
+    showLogin('Não foi possível concluir o login. Verifique sua conexão e tente novamente.');
+  }finally{
+    if(button) button.disabled = false;
+  }
 }
+
 async function finishLogin(){
-  const result = await db.collection('users').limit(100).get();
-  const account = result.docs.map(normalizeDoc).find(user=>user.usuario?.toLowerCase() === authSession.user.email.split('@')[0].toLowerCase() && user.status!=='Inativo');
-  if(!account){ await window.supabaseClient.auth.signOut(); authSession=null; $('#login-error').textContent='Perfil de usuário não encontrado.'; return; }
-  CUR = { name: account.nome, role: account.perfil, usuario: account.usuario };
-  $('#login-screen').style.display='none';
-  $('#app').classList.add('ready');
-  $('#user-name-lbl').textContent = CUR.name;
-  $('#user-role-lbl').textContent = CUR.role;
-  $('#user-avatar').textContent = CUR.name.charAt(0).toUpperCase();
-  $('#top-avatar').textContent = CUR.name.charAt(0).toUpperCase();
-  applyPermissions();
-  await seedDemoData();
-  await seedOperationalData();
-  subscribeAll();
+  try{
+    if(!authSession || !authSession.user) throw new Error('Sessão de autenticação não encontrada.');
+
+    const result = await withTimeout(db.collection('users').limit(100).get());
+    const emailUsuario = authSession.user.email.split('@')[0].toLowerCase();
+    const account = result.docs.map(normalizeDoc).find(user=>
+      user.usuario?.toLowerCase() === emailUsuario && user.status !== 'Inativo'
+    );
+
+    if(!account){
+      await window.supabaseClient.auth.signOut();
+      authSession = null;
+      showLogin('Perfil de usuário não encontrado.');
+      return;
+    }
+
+    CUR = { name: account.nome, role: account.perfil, usuario: account.usuario };
+    $('#user-name-lbl').textContent = CUR.name;
+    $('#user-role-lbl').textContent = CUR.role;
+    $('#user-avatar').textContent = CUR.name.charAt(0).toUpperCase();
+    $('#top-avatar').textContent = CUR.name.charAt(0).toUpperCase();
+    applyPermissions();
+
+    // O banco pode estar temporariamente indisponível. Isso não deve gerar tela preta.
+    try{
+      await withTimeout(seedDemoData());
+      await withTimeout(seedOperationalData());
+    }catch(e){
+      console.warn('Dados iniciais não carregados:', e);
+      toast('Conectado, mas o banco demorou para carregar.');
+    }
+
+    showApp();
+    subscribeAll();
+
+  }catch(e){
+    console.error('Erro ao carregar o perfil/sistema:', e);
+    showLogin('A sessão foi recuperada, mas não foi possível carregar o sistema. Tente novamente.');
+  }
 }
+
 async function doLogout(signOut=true){
-  if(signOut && window.supabaseClient) await window.supabaseClient.auth.signOut();
+  if(signOut && window.supabaseClient){
+    try{ await window.supabaseClient.auth.signOut(); }catch(e){ console.warn('Erro ao sair:', e); }
+  }
   authSession = null;
   CUR = { name:'', role:'Administrador', usuario:'' };
-  $('#app').classList.remove('ready');
-  $('#login-screen').style.display='flex';
+  showLogin('');
   $('#login-password').value='';
 }
+
 function applyPermissions(){
   const access={
     Administrador:['dashboard','os','planejamento','clientes','materiais','ferramentas','cnc','indicadores','pendencias','notificacoes','usuarios'],
