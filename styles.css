@@ -602,3 +602,16 @@ html,body{overflow-x:hidden;}
   .sidebar{background:rgba(18,19,22,.96);}
   .topbar{background:rgba(24,25,28,.78);}
 }
+/* ---------- CORREÇÃO: MENU LATERAL / TELA CINZA ---------- */
+@media(min-width:901px){
+  #app.ready{display:flex;}
+  .sidebar{position:sticky;top:0;height:100vh;align-self:flex-start;}
+}
+@media(max-width:900px){
+  #app.ready{display:block;overflow-x:hidden;}
+  .sidebar{position:fixed;top:0;bottom:0;left:calc(-1 * min(272px,82vw));width:min(272px,82vw);height:100%;z-index:1001;}
+  .sidebar.open{left:0;}
+  #mobile-overlay{display:block;position:fixed;inset:0;background:rgba(0,0,0,.62);opacity:0;pointer-events:none;transition:opacity .2s;z-index:1000;}
+  #mobile-overlay.show{opacity:1;pointer-events:auto;}
+  .main{width:100%;}
+}

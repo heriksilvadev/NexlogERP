@@ -262,6 +262,7 @@ async function finishLogin(){
     }
 
     showApp();
+    renderView();
     subscribeAll();
 
   }catch(e){
