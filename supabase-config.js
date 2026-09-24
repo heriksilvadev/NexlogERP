@@ -1,4 +1,4 @@
 window.NEXLOG_SUPABASE_CONFIG = {
-  url: 'https://SEU_PROJETO.supabase.co',
-  anonKey: 'SEU_ANON_KEY'
+  url: 'https://hsepxlztfmisyyfryite.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzZXB4bHp0Zm1pc3l5ZnJ5aXRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNjI0NzIsImV4cCI6MjEwNTgzODQ3Mn0.BuuyDqUv8Thdatc2V0caVO_62sHb9NwWl3FkdAFEWK4'
 };
